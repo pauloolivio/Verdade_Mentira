@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Duas Verdades e Uma Mentira - Projeção</title>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header {
+            background: rgba(255,255,255,0.95);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .card {
+            background: white;
+            border-radius: 24px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.98); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .rodada-display {
+            text-align: center;
+        }
+        .jogador-destaque {
+            background: linear-gradient(135deg, #f59e0b, #ef4444);
+            color: white;
+            padding: 30px;
+            border-radius: 30px;
+            margin: 20px 0;
+        }
+        .frase-card {
+            background: #f3f4f6;
+            border-radius: 20px;
+            padding: 20px;
+            margin: 15px 0;
+            font-size: 18px;
+        }
+        .votos-container {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+        .voto-card {
+            text-align: center;
+            padding: 20px;
+            background: #f3f4f6;
+            border-radius: 20px;
+            min-width: 120px;
+        }
+        .voto-numero {
+            font-size: 48px;
+            font-weight: bold;
+            color: #f59e0b;
+        }
+        .ranking-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .ranking-card {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border-radius: 16px;
+            padding: 15px;
+            text-align: center;
+        }
+        .posicao {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #10b981;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            z-index: 1000;
+            animation: fadeOut 3s ease;
+        }
+        @keyframes fadeOut {
+            0% { opacity: 1; }
+            70% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-theater-masks"></i> Duas Verdades e Uma Mentira</h1>
+            <p>Tela de Projeção - Acompanhe o jogo em tempo real!</p>
+        </div>
+
+        <div class="card" id="rodadaCard">
+            <div id="rodadaContent" style="text-align:center;">
+                <i class="fas fa-hourglass-half" style="font-size:60px; color:#f59e0b;"></i>
+                <h2 style="margin-top:15px;">Aguardando Rodada</h2>
+                <p>O anfitrião vai iniciar o jogo em breve...</p>
+            </div>
+        </div>
+
+        <div class="card" id="rankingCard">
+            <h2><i class="fas fa-trophy"></i> Ranking</h2>
+            <div id="rankingContent" class="ranking-grid">
+                <div style="text-align:center;">Carregando...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function listenToRodada() {
+            window.db.ref('rodadaAtiva').on('value', (snapshot) => {
+                const rodada = snapshot.val();
+                const container = document.getElementById('rodadaContent');
+                
+                if (rodada && rodada.ativa) {
+                    const frases = [rodada.frase1, rodada.frase2, rodada.frase3];
+                    container.innerHTML = `
+                        <div class="rodada-display">
+                            <h2>🎭 Rodada Atual</h2>
+                            <div class="jogador-destaque">
+                                <i class="fas fa-user-circle" style="font-size:60px;"></i>
+                                <h1 style="margin:10px 0;">${rodada.jogadorNome}</h1>
+                                <p>Este jogador enviou 3 frases. Uma delas é MENTIRA!</p>
+                            </div>
+                            <h3>📝 Frases:</h3>
+                            <div class="frase-card"><strong>A)</strong> ${frases[0]}</div>
+                            <div class="frase-card"><strong>B)</strong> ${frases[1]}</div>
+                            <div class="frase-card"><strong>C)</strong> ${frases[2]}</div>
+                            <div class="votos-container" id="votosContainer">
+                                <div class="voto-card"><div class="voto-numero" id="votosA">0</div><div>Votos A</div></div>
+                                <div class="voto-card"><div class="voto-numero" id="votosB">0</div><div>Votos B</div></div>
+                                <div class="voto-card"><div class="voto-numero" id="votosC">0</div><div>Votos C</div></div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Listen to votes
+                    window.db.ref('votosRodada').on('value', (snap) => {
+                        const votos = snap.val() || {};
+                        const contagem = { A: 0, B: 0, C: 0 };
+                        Object.values(votos).forEach(v => { if (contagem[v] !== undefined) contagem[v]++; });
+                        document.getElementById('votosA').textContent = contagem.A;
+                        document.getElementById('votosB').textContent = contagem.B;
+                        document.getElementById('votosC').textContent = contagem.C;
+                    });
+                    
+                } else {
+                    container.innerHTML = `
+                        <div style="text-align:center;">
+                            <i class="fas fa-hourglass-half" style="font-size:60px; color:#f59e0b;"></i>
+                            <h2 style="margin-top:15px;">Aguardando Rodada</h2>
+                            <p>O anfitrião vai iniciar o jogo em breve...</p>
+                        </div>
+                    `;
+                }
+            });
+        }
+        
+        async function atualizarRanking() {
+            const pontuacoesSnap = await window.db.ref('pontuacoes').once('value');
+            const pontuacoes = pontuacoesSnap.val() || {};
+            const jogadoresSnap = await window.db.ref('jogadores').once('value');
+            const jogadores = jogadoresSnap.val() || {};
+            
+            const ranking = Object.entries(pontuacoes)
+                .map(([id, pontos]) => ({
+                    nome: jogadores[id]?.nome || id,
+                    pontos
+                }))
+                .sort((a, b) => b.pontos - a.pontos);
+            
+            const container = document.getElementById('rankingContent');
+            if (ranking.length === 0) {
+                container.innerHTML = '<div style="text-align:center;">Nenhuma pontuação ainda</div>';
+                return;
+            }
+            
+            container.innerHTML = ranking.map((r, idx) => `
+                <div class="ranking-card">
+                    <div class="posicao">${idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx+1}º`}</div>
+                    <div style="font-size:18px; font-weight:bold; margin:10px 0;">${r.nome}</div>
+                    <div style="font-size:24px; color:#f59e0b;">${r.pontos} pts</div>
+                </div>
+            `).join('');
+        }
+        
+        window.db.ref('pontuacoes').on('value', () => atualizarRanking());
+        window.db.ref('jogadores').on('value', () => atualizarRanking());
+        
+        listenToRodada();
+        atualizarRanking();
+    </script>
+</body>
+</html>

@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Duas Verdades e Uma Mentira - Jogador</title>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 600px; margin: 0 auto; }
+        .header {
+            background: rgba(255,255,255,0.95);
+            border-radius: 20px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .avatar {
+            width: 45px; height: 45px;
+            background: linear-gradient(135deg, #f59e0b, #ef4444);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: white;
+        }
+        .card {
+            background: white;
+            border-radius: 24px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            animation: fadeIn 0.4s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .frase-input {
+            margin-bottom: 20px;
+        }
+        .frase-input label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #374151;
+        }
+        .frase-input textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 14px;
+            resize: vertical;
+            font-family: inherit;
+        }
+        .frase-input textarea:focus {
+            outline: none;
+            border-color: #f59e0b;
+        }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #f59e0b, #ef4444);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(245, 158, 11, 0.4);
+        }
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+        }
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+        .btn-voto {
+            background: #f3f4f6;
+            border: 2px solid #e5e7eb;
+            padding: 15px;
+            text-align: left;
+            margin-bottom: 10px;
+            cursor: pointer;
+            border-radius: 16px;
+            transition: all 0.2s;
+        }
+        .btn-voto:hover {
+            transform: translateX(5px);
+            border-color: #f59e0b;
+            background: #fef3c7;
+        }
+        .btn-voto.selected {
+            background: #10b981;
+            color: white;
+            border-color: #10b981;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .status-waiting { background: #fef3c7; color: #d97706; }
+        .status-writing { background: #dbeafe; color: #2563eb; }
+        .status-voting { background: #e0f2fe; color: #0284c7; }
+        .status-success { background: #d1fae5; color: #065f46; }
+        
+        .timer-circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #f59e0b, #ef4444);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+        .timer-circle span {
+            font-size: 36px;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #10b981;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            z-index: 1000;
+            animation: fadeOut 3s ease;
+        }
+        @keyframes fadeOut {
+            0% { opacity: 1; }
+            70% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="avatar"><i class="fas fa-user"></i></div>
+            <div>
+                <h3 id="playerName">Jogador</h3>
+                <p style="font-size:12px; color:#6b7280;">Duas Verdades e Uma Mentira</p>
+            </div>
+            <button class="btn-secondary" onclick="confirmarLogout()" style="width:auto; padding:8px 15px;">
+                <i class="fas fa-sign-out-alt"></i> Sair
+            </button>
+        </div>
+
+        <!-- Tela de Escrita das Frases -->
+        <div class="card" id="frasesCard">
+            <h2 style="margin-bottom:20px;"><i class="fas fa-pen-fancy"></i> Escreva suas Frases</h2>
+            <p style="margin-bottom:20px; color:#6b7280;">Escreva DUAS verdades sobre você e UMA mentira. Os outros terão que adivinhar qual é a mentira!</p>
+            
+            <div class="frase-input">
+                <label><i class="fas fa-check-circle" style="color:#10b981;"></i> Verdade 1</label>
+                <textarea id="verdade1" rows="2" placeholder="Digite uma verdade sobre você..."></textarea>
+            </div>
+            <div class="frase-input">
+                <label><i class="fas fa-check-circle" style="color:#10b981;"></i> Verdade 2</label>
+                <textarea id="verdade2" rows="2" placeholder="Digite outra verdade sobre você..."></textarea>
+            </div>
+            <div class="frase-input">
+                <label><i class="fas fa-question-circle" style="color:#f59e0b;"></i> Mentira</label>
+                <textarea id="mentira" rows="2" placeholder="Digite uma mentira (algo falso sobre você)..."></textarea>
+            </div>
+            <div class="frase-input">
+                <label><i class="fas fa-microphone-alt"></i> História Real (opcional)</label>
+                <textarea id="historiaReal" rows="3" placeholder="Conte a história real por trás da mentira (será revelada se acertarem)..."></textarea>
+            </div>
+            
+            <button class="btn btn-primary" onclick="enviarFrases()">
+                <i class="fas fa-paper-plane"></i> Enviar Frases
+            </button>
+            <p style="margin-top:15px; font-size:12px; color:#9ca3af; text-align:center;">
+                <i class="fas fa-info-circle"></i> Após enviar, aguarde os outros jogadores. O anfitrião iniciará as rodadas.
+            </p>
+        </div>
+
+        <!-- Tela de Aguardando -->
+        <div class="card" id="aguardandoCard" style="display:none;">
+            <div style="text-align:center;">
+                <i class="fas fa-hourglass-half" style="font-size:60px; color:#f59e0b;"></i>
+                <h2 style="margin:15px 0;">Aguardando</h2>
+                <p>Você já enviou suas frases! Aguarde o anfitrião iniciar o jogo.</p>
+                <div class="status-badge status-success" style="margin-top:20px;">
+                    <i class="fas fa-check-circle"></i> Frases Enviadas!
+                </div>
+            </div>
+        </div>
+
+        <!-- Tela de Votação -->
+        <div class="card" id="votacaoCard" style="display:none;">
+            <div class="timer-circle">
+                <span id="timerVotacao">0</span>
+            </div>
+            <h2 style="text-align:center; margin-bottom:20px;" id="votacaoTitulo">🎭 Quem está na vez?</h2>
+            <div id="frasesVotacao"></div>
+            <button class="btn btn-primary" id="btnVotar" onclick="enviarVoto()" style="margin-top:15px;" disabled>
+                <i class="fas fa-vote-yea"></i> Confirmar Voto
+            </button>
+        </div>
+
+        <!-- Tela de Aguardando Resultado -->
+        <div class="card" id="resultadoCard" style="display:none;">
+            <div id="resultadoContent"></div>
+            <button class="btn btn-primary" onclick="fecharResultado()" style="margin-top:15px;">
+                <i class="fas fa-check"></i> Continuar
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let playerId = null;
+        let playerName = null;
+        let frasesEnviadas = false;
+        let rodadaAtiva = false;
+        let meuVoto = null;
+        let timerInterval = null;
+        let rodadaListener = null;
+        
+        function showToast(msg) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerHTML = `<i class="fas fa-info-circle"></i> ${msg}`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+        
+        async function enviarFrases() {
+            const verdade1 = document.getElementById('verdade1').value.trim();
+            const verdade2 = document.getElementById('verdade2').value.trim();
+            const mentira = document.getElementById('mentira').value.trim();
+            const historiaReal = document.getElementById('historiaReal').value.trim();
+            
+            if (!verdade1 || !verdade2 || !mentira) {
+                alert("Preencha todas as 3 frases!");
+                return;
+            }
+            
+            const mentiraIndex = 3; // A mentira é a terceira frase
+            
+            try {
+                await window.db.ref(`frases/${playerId}`).set({
+                    frase1: verdade1,
+                    frase2: verdade2,
+                    frase3: mentira,
+                    mentiraIndex: 3,
+                    historiaReal: historiaReal || "O jogador não forneceu uma história real."
+                });
+                
+                await window.db.ref(`jogadores/${playerId}`).update({
+                    pronto: true,
+                    frases: true
+                });
+                
+                frasesEnviadas = true;
+                document.getElementById('frasesCard').style.display = 'none';
+                document.getElementById('aguardandoCard').style.display = 'block';
+                showToast("✅ Frases enviadas! Aguarde o jogo começar.");
+                
+            } catch (error) {
+                console.error(error);
+                alert("Erro ao enviar frases: " + error.message);
+            }
+        }
+        
+        function listenToRodada() {
+            if (rodadaListener) rodadaListener.off();
+            
+            rodadaListener = window.db.ref('rodadaAtiva').on('value', async (snapshot) => {
+                const rodada = snapshot.val();
+                
+                if (rodada && rodada.ativa && rodada.jogadorId !== playerId) {
+                    // Modo votação
+                    rodadaAtiva = true;
+                    document.getElementById('frasesCard').style.display = 'none';
+                    document.getElementById('aguardandoCard').style.display = 'none';
+                    document.getElementById('votacaoCard').style.display = 'block';
+                    document.getElementById('resultadoCard').style.display = 'none';
+                    
+                    document.getElementById('votacaoTitulo').innerHTML = `🎭 Vez de ${rodada.jogadorNome}`;
+                    
+                    const frases = [rodada.frase1, rodada.frase2, rodada.frase3];
+                    const letras = ['A', 'B', 'C'];
+                    
+                    document.getElementById('frasesVotacao').innerHTML = frases.map((frase, idx) => `
+                        <div class="btn-voto" onclick="selecionarVoto('${letras[idx]}')" data-voto="${letras[idx]}">
+                            <strong>${letras[idx]})</strong> ${frase}
+                        </div>
+                    `).join('');
+                    
+                    meuVoto = null;
+                    document.getElementById('btnVotar').disabled = true;
+                    
+                    // Iniciar timer
+                    if (timerInterval) clearInterval(timerInterval);
+                    let tempoRestante = rodada.tempoLimite || 30;
+                    const timerElement = document.getElementById('timerVotacao');
+                    
+                    timerInterval = setInterval(() => {
+                        tempoRestante--;
+                        timerElement.textContent = tempoRestante;
+                        if (tempoRestante <= 0) {
+                            clearInterval(timerInterval);
+                            if (meuVoto) enviarVoto();
+                            else showToast("⏰ Tempo esgotado! Você não votou.");
+                        }
+                    }, 1000);
+                    
+                } else if (rodada && rodada.ativa && rodada.jogadorId === playerId) {
+                    // É a vez do próprio jogador - só aguardar
+                    document.getElementById('frasesCard').style.display = 'none';
+                    document.getElementById('aguardandoCard').style.display = 'block';
+                    document.getElementById('votacaoCard').style.display = 'none';
+                    document.getElementById('resultadoCard').style.display = 'none';
+                    document.getElementById('aguardandoCard').innerHTML = `
+                        <div style="text-align:center;">
+                            <i class="fas fa-user-clock" style="font-size:60px; color:#f59e0b;"></i>
+                            <h2>É a sua vez!</h2>
+                            <p>Os outros jogadores estão votando para descobrir sua mentira.</p>
+                            <div class="status-badge status-waiting" style="margin-top:20px;">
+                                <i class="fas fa-hourglass-half"></i> Aguardando votação
+                            </div>
+                        </div>
+                    `;
+                    
+                } else if (!rodada || !rodada.ativa) {
+                    if (rodadaAtiva) {
+                        rodadaAtiva = false;
+                        if (timerInterval) clearInterval(timerInterval);
+                        document.getElementById('votacaoCard').style.display = 'none';
+                        document.getElementById('aguardandoCard').style.display = 'block';
+                    }
+                }
+            });
+        }
+        
+        function selecionarVoto(voto) {
+            meuVoto = voto;
+            document.querySelectorAll('.btn-voto').forEach(btn => {
+                btn.classList.remove('selected');
+                if (btn.getAttribute('data-voto') === voto) {
+                    btn.classList.add('selected');
+                }
+            });
+            document.getElementById('btnVotar').disabled = false;
+        }
+        
+        async function enviarVoto() {
+            if (!meuVoto) {
+                alert("Selecione uma opção primeiro!");
+                return;
+            }
+            
+            try {
+                await window.db.ref(`votosRodada/${playerId}`).set(meuVoto);
+                showToast(`✅ Você votou na opção ${meuVoto}!`);
+                document.getElementById('btnVotar').disabled = true;
+                
+                // Aguardar resultado
+                setTimeout(() => {
+                    document.getElementById('votacaoCard').style.display = 'none';
+                }, 500);
+                
+            } catch (error) {
+                console.error(error);
+                alert("Erro ao enviar voto: " + error.message);
+            }
+        }
+        
+        function listenToResultado() {
+            window.db.ref('rodadaAtiva').on('value', async (snapshot) => {
+                const rodada = snapshot.val();
+                if (!rodada || !rodada.ativa) {
+                    // Resultado já foi processado no anfitrião
+                    if (rodadaAtiva) {
+                        rodadaAtiva = false;
+                        if (timerInterval) clearInterval(timerInterval);
+                    }
+                }
+            });
+            
+            // Ouvir mudanças nas pontuações
+            window.db.ref('pontuacoes').on('value', () => {
+                if (!rodadaAtiva) {
+                    showToast("📊 O ranking foi atualizado!");
+                }
+            });
+        }
+        
+        function fecharResultado() {
+            document.getElementById('resultadoCard').style.display = 'none';
+            document.getElementById('aguardandoCard').style.display = 'block';
+        }
+        
+        async function confirmarLogout() {
+            if (confirm("Deseja sair do jogo?")) {
+                if (playerId) {
+                    await window.db.ref(`jogadores/${playerId}`).update({ online: false });
+                }
+                await window.auth.signOut();
+                sessionStorage.clear();
+                window.location.href = "index.html";
+            }
+        }
+        
+        function loadPlayerData() {
+            playerId = sessionStorage.getItem('playerId');
+            playerName = sessionStorage.getItem('playerName');
+            if (playerName) {
+                document.getElementById('playerName').innerHTML = `<i class="fas fa-user"></i> ${playerName}`;
+            }
+        }
+        
+        // Heartbeat para manter online
+        function iniciarHeartbeat() {
+            setInterval(async () => {
+                if (playerId) {
+                    await window.db.ref(`jogadores/${playerId}`).update({
+                        ultimaAtividade: Date.now(),
+                        online: true
+                    });
+                }
+            }, 15000);
+        }
+        
+        window.selecionarVoto = selecionarVoto;
+        window.enviarVoto = enviarVoto;
+        window.enviarFrases = enviarFrases;
+        window.confirmarLogout = confirmarLogout;
+        window.fecharResultado = fecharResultado;
+        
+        window.auth.onAuthStateChanged(async (user) => {
+            if (!user) {
+                window.location.href = "index.html";
+                return;
+            }
+            loadPlayerData();
+            iniciarHeartbeat();
+            listenToRodada();
+            listenToResultado();
+            
+            // Verificar se já enviou frases
+            const frasesSnap = await window.db.ref(`frases/${playerId}`).once('value');
+            if (frasesSnap.exists()) {
+                frasesEnviadas = true;
+                document.getElementById('frasesCard').style.display = 'none';
+                document.getElementById('aguardandoCard').style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
