@@ -94,6 +94,63 @@
         }
         .modo-normal { background: #dbeafe; color: #2563eb; }
         .modo-dificil { background: #fef3c7; color: #d97706; }
+        
+        .resultado-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            animation: fadeInModal 0.5s ease;
+        }
+        @keyframes fadeInModal {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .resultado-modal {
+            background: white;
+            max-width: 600px;
+            width: 90%;
+            border-radius: 30px;
+            padding: 30px;
+            text-align: center;
+        }
+        .resultado-acerto {
+            background: #d1fae5;
+            color: #065f46;
+            padding: 20px;
+            border-radius: 20px;
+        }
+        .resultado-erro {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 20px;
+            border-radius: 20px;
+        }
+        .btn-fechar {
+            margin-top: 20px;
+            padding: 10px 30px;
+            background: #f59e0b;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .confetti {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1999;
+        }
     </style>
 </head>
 <body>
@@ -119,7 +176,106 @@
         </div>
     </div>
 
+    <div id="resultadoModal" style="display:none;"></div>
+
     <script>
+        let resultadoExibido = false;
+        
+        function criarConfetti() {
+            const confettiDiv = document.createElement('div');
+            confettiDiv.className = 'confetti';
+            confettiDiv.innerHTML = '🎉 🎊 ✨ 🎉 🎊 ✨';
+            confettiDiv.style.fontSize = '30px';
+            confettiDiv.style.textAlign = 'center';
+            confettiDiv.style.paddingTop = '20px';
+            document.body.appendChild(confettiDiv);
+            setTimeout(() => confettiDiv.remove(), 3000);
+        }
+        
+        function listenToResultado() {
+            window.db.ref('resultadoRodada').on('value', (snapshot) => {
+                const resultado = snapshot.val();
+                
+                if (resultado && resultado.finalizada && !resultadoExibido) {
+                    resultadoExibido = true;
+                    const jogador = resultado.jogadorAtual;
+                    const modo = resultado.modo;
+                    
+                    let html = `
+                        <div class="resultado-modal">
+                            <h2><i class="fas fa-chart-line"></i> RESULTADO DA RODADA</h2>
+                    `;
+                    
+                    // Determinar resultado baseado nos votos da maioria (já calculado no anfitrião)
+                    // Vamos buscar os votos para mostrar estatísticas
+                    
+                    if (modo === "normal") {
+                        // No modo normal, precisamos saber se acertaram a mentira
+                        // Isso será determinado pelo anfitrião e salvo no resultado
+                        html += `
+                            <div style="margin:20px 0;">
+                                <h3>🎭 Jogador da vez: ${jogador.nome}</h3>
+                                <div style="background:#f3f4f6; padding:20px; border-radius:16px; margin:15px 0;">
+                                    <p><strong>📝 A mentira era a opção ${jogador.mentiraOpcao}:</strong></p>
+                                    <p>"${jogador.mentiraTexto}"</p>
+                                    <p style="margin-top:10px;"><strong>📖 História real:</strong> ${jogador.historiaReal}</p>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        html += `
+                            <div style="margin:20px 0;">
+                                <h3>🎭 ${jogador.foiRevelado ? 'JOGADOR REVELADO!' : 'JOGADOR PERMANECEU ANÔNIMO'}</h3>
+                                ${jogador.foiRevelado ? `
+                                    <div class="resultado-erro" style="margin:15px 0;">
+                                        <i class="fas fa-skull" style="font-size:50px;"></i>
+                                        <h2>${jogador.nome} FOI DESMASCARADO!</h2>
+                                        <p>O grupo descobriu a mentira e quem enviou as frases!</p>
+                                    </div>
+                                ` : `
+                                    <div class="resultado-acerto" style="margin:15px 0;">
+                                        <i class="fas fa-trophy" style="font-size:50px;"></i>
+                                        <h2>${jogador.nome} NÃO FOI DESCOBERTO!</h2>
+                                        <p>O autor permanece no anonimato!</p>
+                                    </div>
+                                `}
+                                <div style="background:#f3f4f6; padding:20px; border-radius:16px; margin:15px 0;">
+                                    <p><strong>📝 A mentira era a opção ${jogador.mentiraOpcao}:</strong></p>
+                                    <p>"${jogador.mentiraTexto}"</p>
+                                    <p style="margin-top:10px;"><strong>📖 História real:</strong> ${jogador.historiaReal}</p>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    html += `
+                            <button class="btn-fechar" onclick="fecharResultado()">
+                                <i class="fas fa-check"></i> Continuar
+                            </button>
+                        </div>
+                    `;
+                    
+                    const modalDiv = document.getElementById('resultadoModal');
+                    modalDiv.innerHTML = html;
+                    modalDiv.style.display = 'flex';
+                    modalDiv.className = 'resultado-overlay';
+                    
+                    criarConfetti();
+                    
+                    // Fechar automaticamente após 10 segundos
+                    setTimeout(() => {
+                        fecharResultado();
+                    }, 10000);
+                }
+            });
+        }
+        
+        function fecharResultado() {
+            const modalDiv = document.getElementById('resultadoModal');
+            modalDiv.style.display = 'none';
+            resultadoExibido = false;
+        }
+        
         function listenToRodada() {
             window.db.ref('rodadaAtiva').on('value', (snapshot) => {
                 const rodada = snapshot.val();
@@ -127,7 +283,7 @@
                 const modo = rodada?.modo || "normal";
                 
                 if (rodada && rodada.ativa) {
-                    const frases = [rodada.frase1, rodada.frase2, rodada.frase3];
+                    const frases = [rodada.fraseA, rodada.fraseB, rodada.fraseC];
                     
                     const modoHtml = modo === "normal" 
                         ? '<div class="modo-badge modo-normal"><i class="fas fa-smile"></i> Modo Normal - Descubra a Mentira</div>'
@@ -160,6 +316,9 @@
                                 <div class="voto-card"><div class="voto-numero" id="votosC">0</div><div>Votos C</div></div>
                             </div>
                             <div id="votosAutorContainer" style="margin-top:20px;"></div>
+                            <div style="margin-top:20px; padding:10px; background:#e0f2fe; border-radius:12px;">
+                                <i class="fas fa-info-circle"></i> Aguardando votos... O resultado aparecerá automaticamente quando a votação terminar!
+                            </div>
                         </div>
                     `;
                     
@@ -188,7 +347,7 @@
                             
                             let html = '<div style="display:flex; justify-content:center; gap:15px; flex-wrap:wrap;">';
                             for (const [autorId, qtd] of Object.entries(contagemAutor)) {
-                                const nome = jogadores[autorId]?.nome || autorId;
+                                const nome = jogadores[autorId]?.nome || autorId.substring(0, 8);
                                 html += `<div class="voto-card"><div class="voto-numero">${qtd}</div><div>${nome}</div></div>`;
                             }
                             html += '</div>';
@@ -204,6 +363,7 @@
                             <p>O anfitrião vai iniciar o jogo em breve...</p>
                         </div>
                     `;
+                    resultadoExibido = false;
                 }
             });
         }
@@ -233,10 +393,13 @@
             `).join('');
         }
         
+        window.fecharResultado = fecharResultado;
+        
         window.db.ref('pontuacoes').on('value', () => atualizarRanking());
         window.db.ref('jogadores').on('value', () => atualizarRanking());
         
         listenToRodada();
+        listenToResultado();
         atualizarRanking();
     </script>
 </body>
