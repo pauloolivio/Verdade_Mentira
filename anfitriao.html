@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Duas Verdades e Uma Mentira - Anfitrião</title>
+    <title>2V1M - Anfitrião</title>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
@@ -24,7 +24,7 @@
             padding: 20px 25px;
             margin-bottom: 20px;
             display: flex;
- justify-content: space-between;
+            justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
             gap: 15px;
@@ -73,7 +73,30 @@
             margin-bottom: 20px;
             padding-bottom: 15px;
             border-bottom: 2px solid #e5e7eb;
+            flex-wrap: wrap;
+            gap: 15px;
         }
+        .modo-selector {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            background: #f3f4f6;
+            padding: 8px 20px;
+            border-radius: 40px;
+        }
+        .modo-option {
+            padding: 8px 20px;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+        .modo-option.normal { background: #dbeafe; color: #2563eb; }
+        .modo-option.dificil { background: #fef3c7; color: #d97706; }
+        .modo-option.selected { transform: scale(1.05); box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .modo-option.normal.selected { background: #2563eb; color: white; }
+        .modo-option.dificil.selected { background: #d97706; color: white; }
+        
         .status-badge {
             display: inline-flex;
             align-items: center;
@@ -86,7 +109,6 @@
         .status-waiting { background: #fef3c7; color: #d97706; }
         .status-writing { background: #dbeafe; color: #2563eb; }
         .status-voting { background: #e0f2fe; color: #0284c7; }
-        .status-finished { background: #d1fae5; color: #065f46; }
         
         .jogadores-grid {
             display: grid;
@@ -100,26 +122,8 @@
             padding: 15px;
             position: relative;
         }
-        .jogador-card.pronto {
-            background: #d1fae5;
-            border: 2px solid #10b981;
-        }
-        .jogador-card .nome {
-            font-weight: bold;
-            font-size: 16px;
-        }
-        .jogador-card .status {
-            font-size: 12px;
-            color: #6b7280;
-            margin-top: 5px;
-        }
-        .check-icon {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            color: #10b981;
-            font-size: 20px;
-        }
+        .jogador-card.pronto { background: #d1fae5; border: 2px solid #10b981; }
+        .check-icon { position: absolute; top: 10px; right: 10px; color: #10b981; font-size: 20px; }
         
         .frases-preview {
             background: #fef3c7;
@@ -134,10 +138,7 @@
             margin-bottom: 10px;
         }
         
-        .ranking-list {
-            max-height: 400px;
-            overflow-y: auto;
-        }
+        .ranking-list { max-height: 400px; overflow-y: auto; }
         .ranking-item {
             display: flex;
             align-items: center;
@@ -158,6 +159,17 @@
         .ranking-pos.top1 { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: white; }
         .ranking-pos.top2 { background: linear-gradient(135deg, #94a3b8, #cbd5e1); color: white; }
         .ranking-pos.top3 { background: linear-gradient(135deg, #b45309, #d97706); color: white; }
+        
+        .timer-display {
+            font-size: 48px;
+            font-weight: bold;
+            text-align: center;
+            font-family: monospace;
+            background: #1f2937;
+            color: #f59e0b;
+            padding: 15px;
+            border-radius: 20px;
+        }
         
         .toast {
             position: fixed;
@@ -198,17 +210,6 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        
-        .timer-display {
-            font-size: 48px;
-            font-weight: bold;
-            text-align: center;
-            font-family: monospace;
-            background: #1f2937;
-            color: #f59e0b;
-            padding: 15px;
-            border-radius: 20px;
-        }
     </style>
 </head>
 <body>
@@ -226,7 +227,7 @@
                     <i class="fas fa-trophy"></i> Ranking
                 </button>
                 <button class="btn btn-danger" onclick="confirmarReset()">
-                    <i class="fas fa-trash"></i> Resetar Jogo
+                    <i class="fas fa-trash"></i> Resetar
                 </button>
                 <button class="btn" onclick="confirmarLogout()" style="background:#f3f4f6;">
                     <i class="fas fa-sign-out-alt"></i> Sair
@@ -237,6 +238,11 @@
         <div class="card">
             <div class="card-header">
                 <h2><i class="fas fa-users"></i> Jogadores na Sala</h2>
+                <div class="modo-selector">
+                    <span>🎮 Modo:</span>
+                    <div class="modo-option normal selected" onclick="setModo('normal')">😊 Normal</div>
+                    <div class="modo-option dificil" onclick="setModo('dificil')">🔥 Difícil (Anônimo + Quem enviou?)</div>
+                </div>
                 <span id="statusBadge" class="status-badge status-waiting">
                     <i class="fas fa-hourglass-half"></i> Aguardando Frases
                 </span>
@@ -249,9 +255,16 @@
         <div class="card" id="frasesCard" style="display:none;">
             <div class="card-header">
                 <h2><i class="fas fa-pen-fancy"></i> Frases Enviadas</h2>
-                <button class="btn btn-success" id="btnIniciarRodada" onclick="iniciarProximaRodada()" disabled>
-                    <i class="fas fa-play"></i> Iniciar Próxima Rodada
-                </button>
+                <div style="display: flex; gap: 10px;">
+                    <div class="timer-input" style="display: flex; gap: 10px; align-items: center;">
+                        <span>⏱️ Tempo: </span>
+                        <input type="number" id="tempoRodada" value="30" min="15" max="120" style="width:70px; padding:5px; border-radius:8px; border:1px solid #ddd;">
+                        <span>seg</span>
+                    </div>
+                    <button class="btn btn-success" id="btnIniciarRodada" onclick="iniciarProximaRodada()" disabled>
+                        <i class="fas fa-play"></i> Iniciar Rodada
+                    </button>
+                </div>
             </div>
             <div id="frasesPreview"></div>
         </div>
@@ -259,11 +272,7 @@
         <div class="card" id="rodadaCard" style="display:none;">
             <div class="card-header">
                 <h2><i class="fas fa-gamepad"></i> Rodada Atual</h2>
-                <div class="timer-input" style="display: flex; gap: 10px; align-items: center;">
-                    <span>Tempo: </span>
-                    <input type="number" id="tempoRodada" value="30" min="15" max="120" style="width:70px; padding:5px; border-radius:8px; border:1px solid #ddd;">
-                    <span>seg</span>
-                </div>
+                <span id="modoRodadaBadge" class="status-badge status-voting"></span>
             </div>
             <div id="rodadaContent">
                 <div style="text-align:center; padding:30px;">
@@ -278,6 +287,9 @@
                 <h2><i class="fas fa-chart-bar"></i> Resultado da Rodada</h2>
             </div>
             <div id="resultadoContent"></div>
+            <button class="btn btn-primary" onclick="fecharResultado()" style="margin-top:20px;">
+                <i class="fas fa-forward"></i> Próxima Rodada
+            </button>
         </div>
 
         <div class="card">
@@ -294,12 +306,14 @@
     </div>
 
     <script>
+        let modoJogo = "normal"; // normal ou dificil
         let todosJogadores = {};
         let frasesEnviadas = {};
         let rodadaAtiva = false;
         let jogadorAtual = null;
         let timerInterval = null;
-        let votosRodada = {};
+        let votosMentira = {};
+        let votosAutor = {};
 
         function showToast(msg, type = "success") {
             const toast = document.createElement('div');
@@ -321,6 +335,20 @@
             const overlay = document.getElementById('loadingOverlay');
             if (overlay) overlay.remove();
         }
+
+        window.setModo = function(modo) {
+            modoJogo = modo;
+            document.querySelectorAll('.modo-option').forEach(opt => opt.classList.remove('selected'));
+            if (modo === 'normal') {
+                document.querySelector('.modo-option.normal').classList.add('selected');
+            } else {
+                document.querySelector('.modo-option.dificil').classList.add('selected');
+            }
+            showToast(`Modo ${modo === 'normal' ? 'Normal' : 'Difícil'} selecionado!`, "success");
+            
+            // Salvar no Firebase
+            window.db.ref('modoJogo').set(modo);
+        };
 
         async function carregarJogadores() {
             window.db.ref('jogadores').on('value', (snapshot) => {
@@ -376,26 +404,65 @@
                 return;
             }
             
-            container.innerHTML = `
-                <h3>📝 Frases dos Jogadores</h3>
-                ${jogadoresComFrases.map(([id, j]) => {
-                    const frases = frasesEnviadas[id];
-                    return `
-                        <div class="frase-item">
-                            <strong><i class="fas fa-user"></i> ${j.nome}</strong>
-                            <div style="margin-top:8px; padding-left:15px;">
-                                <div>1️⃣ ${frases.frase1}</div>
-                                <div>2️⃣ ${frases.frase2}</div>
-                                <div>3️⃣ ${frases.frase3}</div>
+            if (modoJogo === "normal") {
+                container.innerHTML = `
+                    <h3>📝 Frases dos Jogadores</h3>
+                    ${jogadoresComFrases.map(([id, j]) => {
+                        const frases = frasesEnviadas[id];
+                        return `
+                            <div class="frase-item">
+                                <strong><i class="fas fa-user"></i> ${j.nome}</strong>
+                                <div style="margin-top:8px; padding-left:15px;">
+                                    <div>1️⃣ ${frases.frase1}</div>
+                                    <div>2️⃣ ${frases.frase2}</div>
+                                    <div>3️⃣ ${frases.frase3}</div>
+                                </div>
                             </div>
+                        `;
+                    }).join('')}
+                `;
+            } else {
+                // Modo difícil - mostrar frases anônimas
+                let todasFrases = [];
+                jogadoresComFrases.forEach(([id, j]) => {
+                    const frases = frasesEnviadas[id];
+                    todasFrases.push({
+                        id: id,
+                        nome: j.nome,
+                        frase1: frases.frase1,
+                        frase2: frases.frase2,
+                        frase3: frases.frase3,
+                        mentiraIndex: frases.mentiraIndex
+                    });
+                });
+                
+                // Embaralhar as frases para ficar anônimo
+                todasFrases = todasFrases.sort(() => Math.random() - 0.5);
+                
+                container.innerHTML = `
+                    <h3>🔍 Modo Difícil - Frases Anônimas</h3>
+                    <p style="margin-bottom:15px; color:#d97706;">As frases abaixo foram enviadas pelos jogadores. Descubra QUEM enviou e qual é a MENTIRA!</p>
+                    ${todasFrases.map((f, idx) => `
+                        <div class="frase-item" style="margin-bottom:15px;">
+                            <div><strong>📋 Conjunto de Frases #${idx+1}</strong></div>
+                            <div style="margin-top:8px; padding-left:15px;">
+                                <div>A) ${f.frase1}</div>
+                                <div>B) ${f.frase2}</div>
+                                <div>C) ${f.frase3}</div>
+                            </div>
+                            <div style="margin-top:8px; font-size:12px; color:#9ca3af;">Autor: ???</div>
                         </div>
-                    `;
-                }).join('')}
-                <div style="margin-top:15px; padding:12px; background:#d1fae5; border-radius:12px;">
-                    <i class="fas fa-check-circle"></i> Todos os jogadores já enviaram suas frases!
-                    Clique em "Iniciar Próxima Rodada" para começar.
-                </div>
-            `;
+                    `).join('')}
+                `;
+            }
+        }
+
+        function embaralharArray(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
         }
 
         async function iniciarProximaRodada() {
@@ -423,34 +490,38 @@
             
             rodadaAtiva = true;
             
-            // Salvar rodada no Firebase
             const rodadaId = `rodada_${Date.now()}`;
+            const tempo = parseInt(document.getElementById('tempoRodada').value);
+            
             await window.db.ref(`rodadaAtiva`).set({
                 id: rodadaId,
+                modo: modoJogo,
                 jogadorId: jogadorId,
-                jogadorNome: jogadorData.nome,
+                jogadorNome: modoJogo === "normal" ? jogadorData.nome : null,
                 frase1: jogadorAtual.frases.frase1,
                 frase2: jogadorAtual.frases.frase2,
                 frase3: jogadorAtual.frases.frase3,
                 mentiraIndex: jogadorAtual.frases.mentiraIndex,
                 ativa: true,
                 inicioEm: Date.now(),
-                tempoLimite: parseInt(document.getElementById('tempoRodada').value),
-                votos: { A: 0, B: 0, C: 0 }
+                tempoLimite: tempo,
+                votosMentira: {},
+                votosAutor: {}
             });
             
-            await window.db.ref('votosRodada').set({});
-            votosRodada = {};
+            await window.db.ref('votosMentira').set({});
+            await window.db.ref('votosAutor').set({});
+            votosMentira = {};
+            votosAutor = {};
             
             atualizarInterfaceRodada();
-            iniciarTimer();
-            showToast(`🎲 Rodada iniciada! Vez de ${jogadorData.nome}`);
+            iniciarTimer(tempo);
+            showToast(`🎲 Rodada iniciada! ${modoJogo === "normal" ? `Vez de ${jogadorData.nome}` : "Modo Difícil Ativado!"}`);
         }
         
-        function iniciarTimer() {
+        function iniciarTimer(tempo) {
             if (timerInterval) clearInterval(timerInterval);
             
-            const tempo = parseInt(document.getElementById('tempoRodada').value);
             let tempoRestante = tempo;
             const timerElement = document.getElementById('timerRodada');
             
@@ -471,69 +542,194 @@
             clearInterval(timerInterval);
             rodadaAtiva = false;
             
-            // Buscar votos
-            const votosSnap = await window.db.ref('votosRodada').once('value');
-            const votos = votosSnap.val() || {};
-            const totalVotos = Object.keys(votos).length;
+            const votosMentiraSnap = await window.db.ref('votosMentira').once('value');
+            const votosAutorSnap = await window.db.ref('votosAutor').once('value');
             
-            // Contar votos por alternativa
-            const contagem = { A: 0, B: 0, C: 0 };
-            Object.values(votos).forEach(v => {
-                if (contagem[v] !== undefined) contagem[v]++;
+            const votosMentiraData = votosMentiraSnap.val() || {};
+            const votosAutorData = votosAutorSnap.val() || {};
+            
+            const totalVotos = Object.keys(votosMentiraData).length;
+            
+            // Contar votos da mentira
+            const contagemMentira = { A: 0, B: 0, C: 0 };
+            Object.values(votosMentiraData).forEach(v => {
+                if (contagemMentira[v] !== undefined) contagemMentira[v]++;
             });
             
             const mentiraIndex = jogadorAtual.frases.mentiraIndex;
             const letraMentira = mentiraIndex === 1 ? 'A' : (mentiraIndex === 2 ? 'B' : 'C');
-            const votosMentira = contagem[letraMentira];
-            const acertaram = votosMentira > (totalVotos / 2);
+            const votosMentiraCorreta = contagemMentira[letraMentira];
+            const acertaramMentira = votosMentiraCorreta > (totalVotos / 2);
+            
+            // Contar votos do autor (apenas no modo difícil)
+            let acertaramAutor = false;
+            let autorMaisVotado = null;
+            let votosAutorCorretos = 0;
+            
+            if (modoJogo === "dificil") {
+                const contagemAutor = {};
+                Object.values(votosAutorData).forEach(v => {
+                    contagemAutor[v] = (contagemAutor[v] || 0) + 1;
+                });
+                
+                let maxVotos = 0;
+                for (const [autorId, qtd] of Object.entries(contagemAutor)) {
+                    if (qtd > maxVotos) {
+                        maxVotos = qtd;
+                        autorMaisVotado = autorId;
+                    }
+                }
+                
+                acertaramAutor = (autorMaisVotado === jogadorAtual.id);
+                votosAutorCorretos = contagemAutor[jogadorAtual.id] || 0;
+            }
             
             // Atualizar pontuações
             const pontuacoesRef = window.db.ref('pontuacoes');
             const pontuacoesSnap = await pontuacoesRef.once('value');
             let pontuacoes = pontuacoesSnap.val() || {};
             
-            if (acertaram) {
-                // Jogador atual perde ponto (foi descoberto)
-                pontuacoes[jogadorAtual.id] = (pontuacoes[jogadorAtual.id] || 0);
-                // Quem acertou ganha ponto
-                for (const [votanteId, voto] of Object.entries(votos)) {
-                    if (voto === letraMentira) {
-                        pontuacoes[votanteId] = (pontuacoes[votanteId] || 0) + 1;
+            let resultadoHtml = "";
+            
+            if (modoJogo === "normal") {
+                // Modo Normal: regra original
+                if (acertaramMentira) {
+                    // Quem acertou ganha ponto
+                    for (const [votanteId, voto] of Object.entries(votosMentiraData)) {
+                        if (voto === letraMentira) {
+                            pontuacoes[votanteId] = (pontuacoes[votanteId] || 0) + 1;
+                        }
                     }
+                    
+                    resultadoHtml = `
+                        <div style="text-align:center; padding:20px;">
+                            <i class="fas fa-check-circle" style="font-size:60px; color:#10b981;"></i>
+                            <h2 style="color:#10b981;">ACERTARAM A MENTIRA!</h2>
+                            <p>A maioria votou na mentira correta!</p>
+                            <div style="background:#fef3c7; border-radius:16px; padding:20px; margin-top:20px;">
+                                <h3>🎭 ${jogadorAtual.nome}</h3>
+                                <p><strong>Mentira era:</strong> ${jogadorAtual.frases[`frase${mentiraIndex}`]}</p>
+                                <p><strong>História real:</strong> ${jogadorAtual.frases.historiaReal || "O jogador vai contar a história real agora!"}</p>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    pontuacoes[jogadorAtual.id] = (pontuacoes[jogadorAtual.id] || 0) + 3;
+                    
+                    resultadoHtml = `
+                        <div style="text-align:center; padding:20px;">
+                            <i class="fas fa-times-circle" style="font-size:60px; color:#ef4444;"></i>
+                            <h2 style="color:#ef4444;">NÃO DESCOBRIRAM A MENTIRA!</h2>
+                            <p>A maioria não descobriu a mentira!</p>
+                            <div style="background:#d1fae5; border-radius:16px; padding:20px; margin-top:20px;">
+                                <h3>🎉 ${jogadorAtual.nome} GANHOU 3 PONTOS!</h3>
+                                <p><strong>A mentira era:</strong> ${jogadorAtual.frases[`frase${mentiraIndex}`]}</p>
+                            </div>
+                        </div>
+                    `;
                 }
-                await pontuacoesRef.set(pontuacoes);
-                
-                document.getElementById('resultadoContent').innerHTML = `
-                    <div style="text-align:center; padding:20px;">
-                        <i class="fas fa-check-circle" style="font-size:60px; color:#10b981;"></i>
-                        <h2 style="color:#10b981;">ACERTARAM!</h2>
-                        <p>A maioria votou na mentira correta!</p>
-                        <div style="background:#fef3c7; border-radius:16px; padding:20px; margin-top:20px;">
-                            <h3>🎭 ${jogadorAtual.nome}</h3>
-                            <p><strong>Mentira era:</strong> ${jogadorAtual.frases[`frase${mentiraIndex}`]}</p>
-                            <p><strong>História real:</strong></p>
-                            <p style="margin-top:10px;">${jogadorAtual.frases.historiaReal || "O jogador vai contar a história real agora!"}</p>
-                        </div>
-                    </div>
-                `;
             } else {
-                // Jogador atual ganha ponto extra
-                pontuacoes[jogadorAtual.id] = (pontuacoes[jogadorAtual.id] || 0) + 3;
-                await pontuacoesRef.set(pontuacoes);
+                // Modo Difícil: pontuação complexa
+                // Se acertaram a mentira E o autor → autor perde 2 pontos, quem acertou ambos ganha 2
+                // Se acertaram só a mentira mas não o autor → autor não ganha nem perde, quem acertou mentira ganha 1
+                // Se acertaram só o autor mas não a mentira → autor ganha 1 ponto extra
+                // Se erraram tudo → autor ganha 3 pontos
                 
-                document.getElementById('resultadoContent').innerHTML = `
-                    <div style="text-align:center; padding:20px;">
-                        <i class="fas fa-times-circle" style="font-size:60px; color:#ef4444;"></i>
-                        <h2 style="color:#ef4444;">ERRARAM!</h2>
-                        <p>A maioria não descobriu a mentira!</p>
-                        <div style="background:#d1fae5; border-radius:16px; padding:20px; margin-top:20px;">
-                            <h3>🎉 ${jogadorAtual.nome} GANHOU 3 PONTOS!</h3>
-                            <p><strong>A mentira era:</strong> ${jogadorAtual.frases[`frase${mentiraIndex}`]}</p>
+                let pontosAutor = 0;
+                let mensagemAutor = "";
+                
+                if (acertaramMentira && acertaramAutor) {
+                    // Autor foi desmascarado completamente
+                    pontuacoes[jogadorAtual.id] = (pontuacoes[jogadorAtual.id] || 0) - 2;
+                    pontosAutor = -2;
+                    mensagemAutor = "😱 FOI DESMASCARADO! Perdeu 2 pontos!";
+                    
+                    // Quem acertou ambos ganha 2 pontos
+                    for (const [votanteId, votoM] of Object.entries(votosMentiraData)) {
+                        const votoA = votosAutorData[votanteId];
+                        if (votoM === letraMentira && votoA === jogadorAtual.id) {
+                            pontuacoes[votanteId] = (pontuacoes[votanteId] || 0) + 2;
+                        } else if (votoM === letraMentira) {
+                            pontuacoes[votanteId] = (pontuacoes[votanteId] || 0) + 1;
+                        }
+                    }
+                    
+                    resultadoHtml = `
+                        <div style="text-align:center; padding:20px;">
+                            <i class="fas fa-search" style="font-size:60px; color:#ef4444;"></i>
+                            <h2 style="color:#ef4444;">DESMASCARADO!</h2>
+                            <p>O grupo descobriu a mentira E quem enviou as frases!</p>
+                            <div style="background:#fee2e2; border-radius:16px; padding:20px; margin-top:20px;">
+                                <h3>🔍 ${jogadorAtual.nome}</h3>
+                                <p><strong>Mentira era:</strong> ${jogadorAtual.frases[`frase${mentiraIndex}`]}</p>
+                                <p><strong>${mensagemAutor}</strong></p>
+                            </div>
                         </div>
-                    </div>
-                `;
+                    `;
+                    
+                } else if (acertaramMentira && !acertaramAutor) {
+                    // Acertaram a mentira mas não o autor
+                    for (const [votanteId, votoM] of Object.entries(votosMentiraData)) {
+                        if (votoM === letraMentira) {
+                            pontuacoes[votanteId] = (pontuacoes[votanteId] || 0) + 1;
+                        }
+                    }
+                    
+                    resultadoHtml = `
+                        <div style="text-align:center; padding:20px;">
+                            <i class="fas fa-check-circle" style="font-size:60px; color:#f59e0b;"></i>
+                            <h2 style="color:#f59e0b;">ACERTARAM A MENTIRA, MAS NÃO O AUTOR!</h2>
+                            <p>O grupo descobriu a mentira, mas não quem enviou!</p>
+                            <div style="background:#fef3c7; border-radius:16px; padding:20px; margin-top:20px;">
+                                <p><strong>A mentira era:</strong> ${jogadorAtual.frases[`frase${mentiraIndex}`]}</p>
+                                <p><strong>O autor permanece anônimo!</strong></p>
+                            </div>
+                        </div>
+                    `;
+                    
+                } else if (!acertaramMentira && acertaramAutor) {
+                    // Acertaram o autor mas não a mentira
+                    pontuacoes[jogadorAtual.id] = (pontuacoes[jogadorAtual.id] || 0) + 1;
+                    
+                    for (const [votanteId, votoA] of Object.entries(votosAutorData)) {
+                        if (votoA === jogadorAtual.id) {
+                            pontuacoes[votanteId] = (pontuacoes[votanteId] || 0) + 1;
+                        }
+                    }
+                    
+                    resultadoHtml = `
+                        <div style="text-align:center; padding:20px;">
+                            <i class="fas fa-user-check" style="font-size:60px; color:#10b981;"></i>
+                            <h2 style="color:#10b981;">DESCOBRIRAM O AUTOR, MAS NÃO A MENTIRA!</h2>
+                            <p>O grupo descobriu quem enviou, mas errou a mentira!</p>
+                            <div style="background:#d1fae5; border-radius:16px; padding:20px; margin-top:20px;">
+                                <h3>🎭 Autor: ${jogadorAtual.nome}</h3>
+                                <p><strong>A mentira era:</strong> ${jogadorAtual.frases[`frase${mentiraIndex}`]}</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                } else {
+                    // Erraram tudo
+                    pontuacoes[jogadorAtual.id] = (pontuacoes[jogadorAtual.id] || 0) + 3;
+                    
+                    resultadoHtml = `
+                        <div style="text-align:center; padding:20px;">
+                            <i class="fas fa-trophy" style="font-size:60px; color:#f59e0b;"></i>
+                            <h2 style="color:#f59e0b;">NINGUÉM DESCOBRIU NADA!</h2>
+                            <p>O grupo errou a mentira E o autor!</p>
+                            <div style="background:#d1fae5; border-radius:16px; padding:20px; margin-top:20px;">
+                                <h3>🎉 ${jogadorAtual.nome} GANHOU 3 PONTOS!</h3>
+                                <p><strong>A mentira era:</strong> ${jogadorAtual.frases[`frase${mentiraIndex}`]}</p>
+                            </div>
+                        </div>
+                    `;
+                }
             }
             
+            await pontuacoesRef.set(pontuacoes);
+            
+            document.getElementById('resultadoContent').innerHTML = resultadoHtml;
             document.getElementById('resultadoCard').style.display = 'block';
             document.getElementById('rodadaCard').style.display = 'none';
             
@@ -564,6 +760,9 @@
         function atualizarInterfaceRodada() {
             document.getElementById('rodadaCard').style.display = 'block';
             document.getElementById('resultadoCard').style.display = 'none';
+            document.getElementById('modoRodadaBadge').innerHTML = modoJogo === "normal" ? 
+                '<i class="fas fa-smile"></i> Modo Normal - Descubra a Mentira' : 
+                '<i class="fas fa-skull"></i> Modo Difícil - Descubra a Mentira + Autor';
             
             const frases = [
                 jogadorAtual.frases.frase1,
@@ -571,59 +770,54 @@
                 jogadorAtual.frases.frase3
             ];
             
-            document.getElementById('rodadaContent').innerHTML = `
-                <div style="text-align:center;">
-                    <div class="timer-display" id="timerRodada">${document.getElementById('tempoRodada').value}s</div>
-                    <h3 style="margin:20px 0;">🎭 Quem está na rodada?</h3>
-                    <div style="background:linear-gradient(135deg, #f59e0b, #ef4444); color:white; padding:20px; border-radius:20px; margin:15px 0;">
-                        <i class="fas fa-user-circle" style="font-size:50px;"></i>
-                        <h2>${jogadorAtual.nome}</h2>
-                        <p>Este jogador enviou 3 frases. Uma delas é MENTIRA!</p>
+            if (modoJogo === "normal") {
+                document.getElementById('rodadaContent').innerHTML = `
+                    <div style="text-align:center;">
+                        <div class="timer-display" id="timerRodada">${document.getElementById('tempoRodada').value}s</div>
+                        <div style="background:linear-gradient(135deg, #f59e0b, #ef4444); color:white; padding:20px; border-radius:20px; margin:20px 0;">
+                            <i class="fas fa-user-circle" style="font-size:50px;"></i>
+                            <h2>${jogadorAtual.nome}</h2>
+                            <p>Este jogador enviou 3 frases. Uma delas é MENTIRA!</p>
+                        </div>
+                        <h3>📝 Frases:</h3>
+                        <div style="display:grid; gap:15px; margin:20px 0;">
+                            <div style="background:#f3f4f6; padding:15px; border-radius:16px;"><strong>A)</strong> ${frases[0]}</div>
+                            <div style="background:#f3f4f6; padding:15px; border-radius:16px;"><strong>B)</strong> ${frases[1]}</div>
+                            <div style="background:#f3f4f6; padding:15px; border-radius:16px;"><strong>C)</strong> ${frases[2]}</div>
+                        </div>
+                        <p><i class="fas fa-clock"></i> Jogadores, votem qual é a MENTIRA!</p>
                     </div>
-                    <h3>📝 Frases:</h3>
-                    <div style="display:grid; gap:15px; margin:20px 0;">
-                        <div style="background:#f3f4f6; padding:15px; border-radius:16px;">
-                            <strong>A)</strong> ${frases[0]}
+                `;
+            } else {
+                // Modo Difícil - não mostra quem é o autor
+                const listaJogadores = Object.values(todosJogadores)
+                    .filter(j => j.online)
+                    .map(j => j.nome);
+                
+                document.getElementById('rodadaContent').innerHTML = `
+                    <div style="text-align:center;">
+                        <div class="timer-display" id="timerRodada">${document.getElementById('tempoRodada').value}s</div>
+                        <div style="background:linear-gradient(135deg, #1f2937, #374151); color:white; padding:20px; border-radius:20px; margin:20px 0;">
+                            <i class="fas fa-user-secret" style="font-size:50px;"></i>
+                            <h2>🎭 JOGADOR ANÔNIMO</h2>
+                            <p>Alguém enviou estas 3 frases. Uma delas é MENTIRA!</p>
+                            <p style="margin-top:10px; font-size:14px;">Quem será que enviou? 🤔</p>
                         </div>
-                        <div style="background:#f3f4f6; padding:15px; border-radius:16px;">
-                            <strong>B)</strong> ${frases[1]}
+                        <h3>📝 Frases Anônimas:</h3>
+                        <div style="display:grid; gap:15px; margin:20px 0;">
+                            <div style="background:#f3f4f6; padding:15px; border-radius:16px;"><strong>A)</strong> ${frases[0]}</div>
+                            <div style="background:#f3f4f6; padding:15px; border-radius:16px;"><strong>B)</strong> ${frases[1]}</div>
+                            <div style="background:#f3f4f6; padding:15px; border-radius:16px;"><strong>C)</strong> ${frases[2]}</div>
                         </div>
-                        <div style="background:#f3f4f6; padding:15px; border-radius:16px;">
-                            <strong>C)</strong> ${frases[2]}
-                        </div>
+                        <p><i class="fas fa-clock"></i> Vote na MENTIRA e no AUTOR das frases!</p>
                     </div>
-                    <p><i class="fas fa-clock"></i> Os jogadores têm tempo para votar qual é a mentira!</p>
-                </div>
-            `;
+                `;
+            }
         }
         
-        function listenToRodada() {
-            window.db.ref('rodadaAtiva').on('value', (snapshot) => {
-                const rodada = snapshot.val();
-                if (!rodada || !rodada.ativa) {
-                    if (rodadaAtiva) {
-                        clearInterval(timerInterval);
-                        rodadaAtiva = false;
-                        document.getElementById('rodadaCard').style.display = 'none';
-                    }
-                } else {
-                    if (!rodadaAtiva && rodada.ativa) {
-                        jogadorAtual = {
-                            id: rodada.jogadorId,
-                            nome: rodada.jogadorNome,
-                            frases: {
-                                frase1: rodada.frase1,
-                                frase2: rodada.frase2,
-                                frase3: rodada.frase3,
-                                mentiraIndex: rodada.mentiraIndex
-                            }
-                        };
-                        rodadaAtiva = true;
-                        atualizarInterfaceRodada();
-                        iniciarTimer();
-                    }
-                }
-            });
+        function fecharResultado() {
+            document.getElementById('resultadoCard').style.display = 'none';
+            document.getElementById('frasesCard').style.display = 'block';
         }
         
         async function atualizarRankingResumido() {
@@ -668,7 +862,7 @@
                 .map(([id, pontos]) => ({ nome: jogadores[id]?.nome || id, pontos }))
                 .sort((a, b) => b.pontos - a.pontos);
             
-            let msg = "🏆 RANKING FINAL:\n\n";
+            let msg = "🏆 RANKING:\n\n";
             ranking.forEach((r, i) => {
                 msg += `${i+1}º - ${r.nome}: ${r.pontos} pontos\n`;
             });
@@ -685,7 +879,8 @@
                 await window.db.ref('pontuacoes').remove();
                 await window.db.ref('frases').remove();
                 await window.db.ref('rodadaAtiva').set(null);
-                await window.db.ref('votosRodada').remove();
+                await window.db.ref('votosMentira').remove();
+                await window.db.ref('votosAutor').remove();
                 
                 const jogadores = await window.db.ref('jogadores').once('value');
                 for (const [id, j] of Object.entries(jogadores.val() || {})) {
@@ -714,11 +909,39 @@
             document.getElementById('hostNome').innerHTML = `<i class="fas fa-user"></i> ${email?.split('@')[0] || 'Anfitrião'}`;
         }
         
+        function listenToRodada() {
+            window.db.ref('rodadaAtiva').on('value', (snapshot) => {
+                const rodada = snapshot.val();
+                if (!rodada || !rodada.ativa) {
+                    if (rodadaAtiva) {
+                        clearInterval(timerInterval);
+                        rodadaAtiva = false;
+                        document.getElementById('rodadaCard').style.display = 'none';
+                    }
+                }
+            });
+        }
+        
+        // Carregar modo salvo
+        window.db.ref('modoJogo').on('value', (snapshot) => {
+            const modo = snapshot.val();
+            if (modo && modo !== modoJogo) {
+                modoJogo = modo;
+                document.querySelectorAll('.modo-option').forEach(opt => opt.classList.remove('selected'));
+                if (modo === 'normal') {
+                    document.querySelector('.modo-option.normal').classList.add('selected');
+                } else {
+                    document.querySelector('.modo-option.dificil').classList.add('selected');
+                }
+            }
+        });
+        
         window.iniciarProximaRodada = iniciarProximaRodada;
         window.mostrarRanking = mostrarRanking;
         window.exibirRankingCompleto = exibirRankingCompleto;
         window.confirmarReset = confirmarReset;
         window.confirmarLogout = confirmarLogout;
+        window.fecharResultado = fecharResultado;
         
         window.auth.onAuthStateChanged(async (user) => {
             if (!user) {

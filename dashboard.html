@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Duas Verdades e Uma Mentira - Projeção</title>
+    <title>2V1M - Projeção</title>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
@@ -37,9 +37,7 @@
             from { opacity: 0; transform: scale(0.98); }
             to { opacity: 1; transform: scale(1); }
         }
-        .rodada-display {
-            text-align: center;
-        }
+        .rodada-display { text-align: center; }
         .jogador-destaque {
             background: linear-gradient(135deg, #f59e0b, #ef4444);
             color: white;
@@ -85,27 +83,17 @@
             padding: 15px;
             text-align: center;
         }
-        .posicao {
-            font-size: 24px;
-            font-weight: bold;
+        .posicao { font-size: 24px; font-weight: bold; }
+        .modo-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
         }
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #10b981;
-            color: white;
-            padding: 12px 24px;
-            border-radius: 12px;
-            z-index: 1000;
-            animation: fadeOut 3s ease;
-        }
-        @keyframes fadeOut {
-            0% { opacity: 1; }
-            70% { opacity: 1; }
-            100% { opacity: 0; }
-        }
+        .modo-normal { background: #dbeafe; color: #2563eb; }
+        .modo-dificil { background: #fef3c7; color: #d97706; }
     </style>
 </head>
 <body>
@@ -136,31 +124,46 @@
             window.db.ref('rodadaAtiva').on('value', (snapshot) => {
                 const rodada = snapshot.val();
                 const container = document.getElementById('rodadaContent');
+                const modo = rodada?.modo || "normal";
                 
                 if (rodada && rodada.ativa) {
                     const frases = [rodada.frase1, rodada.frase2, rodada.frase3];
+                    
+                    const modoHtml = modo === "normal" 
+                        ? '<div class="modo-badge modo-normal"><i class="fas fa-smile"></i> Modo Normal - Descubra a Mentira</div>'
+                        : '<div class="modo-badge modo-dificil"><i class="fas fa-skull"></i> Modo Difícil - Descubra a Mentira + Autor</div>';
+                    
+                    const autorHtml = modo === "normal" 
+                        ? `<div class="jogador-destaque">
+                            <i class="fas fa-user-circle" style="font-size:60px;"></i>
+                            <h1 style="margin:10px 0;">${rodada.jogadorNome}</h1>
+                            <p>Este jogador enviou 3 frases. Uma delas é MENTIRA!</p>
+                           </div>`
+                        : `<div class="jogador-destaque" style="background: linear-gradient(135deg, #1f2937, #374151);">
+                            <i class="fas fa-user-secret" style="font-size:60px;"></i>
+                            <h1 style="margin:10px 0;">🎭 JOGADOR ANÔNIMO</h1>
+                            <p>Alguém enviou estas frases. Descubra quem é e qual é a mentira!</p>
+                           </div>`;
+                    
                     container.innerHTML = `
                         <div class="rodada-display">
-                            <h2>🎭 Rodada Atual</h2>
-                            <div class="jogador-destaque">
-                                <i class="fas fa-user-circle" style="font-size:60px;"></i>
-                                <h1 style="margin:10px 0;">${rodada.jogadorNome}</h1>
-                                <p>Este jogador enviou 3 frases. Uma delas é MENTIRA!</p>
-                            </div>
+                            <h2>🎲 Rodada Atual</h2>
+                            ${modoHtml}
+                            ${autorHtml}
                             <h3>📝 Frases:</h3>
                             <div class="frase-card"><strong>A)</strong> ${frases[0]}</div>
                             <div class="frase-card"><strong>B)</strong> ${frases[1]}</div>
                             <div class="frase-card"><strong>C)</strong> ${frases[2]}</div>
-                            <div class="votos-container" id="votosContainer">
+                            <div class="votos-container">
                                 <div class="voto-card"><div class="voto-numero" id="votosA">0</div><div>Votos A</div></div>
                                 <div class="voto-card"><div class="voto-numero" id="votosB">0</div><div>Votos B</div></div>
                                 <div class="voto-card"><div class="voto-numero" id="votosC">0</div><div>Votos C</div></div>
                             </div>
+                            <div id="votosAutorContainer" style="margin-top:20px;"></div>
                         </div>
                     `;
                     
-                    // Listen to votes
-                    window.db.ref('votosRodada').on('value', (snap) => {
+                    window.db.ref('votosMentira').on('value', (snap) => {
                         const votos = snap.val() || {};
                         const contagem = { A: 0, B: 0, C: 0 };
                         Object.values(votos).forEach(v => { if (contagem[v] !== undefined) contagem[v]++; });
@@ -168,6 +171,30 @@
                         document.getElementById('votosB').textContent = contagem.B;
                         document.getElementById('votosC').textContent = contagem.C;
                     });
+                    
+                    if (modo === "dificil") {
+                        const votosAutorDiv = document.getElementById('votosAutorContainer');
+                        votosAutorDiv.innerHTML = '<h4><i class="fas fa-users"></i> Votos para o Autor:</h4><div id="votosAutorList"></div>';
+                        
+                        window.db.ref('votosAutor').on('value', async (snap) => {
+                            const votosAutor = snap.val() || {};
+                            const contagemAutor = {};
+                            Object.values(votosAutor).forEach(v => {
+                                contagemAutor[v] = (contagemAutor[v] || 0) + 1;
+                            });
+                            
+                            const jogadoresSnap = await window.db.ref('jogadores').once('value');
+                            const jogadores = jogadoresSnap.val() || {};
+                            
+                            let html = '<div style="display:flex; justify-content:center; gap:15px; flex-wrap:wrap;">';
+                            for (const [autorId, qtd] of Object.entries(contagemAutor)) {
+                                const nome = jogadores[autorId]?.nome || autorId;
+                                html += `<div class="voto-card"><div class="voto-numero">${qtd}</div><div>${nome}</div></div>`;
+                            }
+                            html += '</div>';
+                            votosAutorDiv.innerHTML = `<h4><i class="fas fa-users"></i> Votos para o Autor:</h4>${html}`;
+                        });
+                    }
                     
                 } else {
                     container.innerHTML = `
@@ -188,10 +215,7 @@
             const jogadores = jogadoresSnap.val() || {};
             
             const ranking = Object.entries(pontuacoes)
-                .map(([id, pontos]) => ({
-                    nome: jogadores[id]?.nome || id,
-                    pontos
-                }))
+                .map(([id, pontos]) => ({ nome: jogadores[id]?.nome || id, pontos }))
                 .sort((a, b) => b.pontos - a.pontos);
             
             const container = document.getElementById('rankingContent');

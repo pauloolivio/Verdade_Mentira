@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Duas Verdades e Uma Mentira - Jogador</title>
+    <title>2V1M - Jogador</title>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
@@ -93,14 +93,10 @@
             background: #f3f4f6;
             color: #374151;
         }
-        .btn-secondary:hover {
-            background: #e5e7eb;
-        }
         .btn-voto {
             background: #f3f4f6;
             border: 2px solid #e5e7eb;
             padding: 15px;
-            text-align: left;
             margin-bottom: 10px;
             cursor: pointer;
             border-radius: 16px;
@@ -124,8 +120,6 @@
             font-weight: 600;
         }
         .status-waiting { background: #fef3c7; color: #d97706; }
-        .status-writing { background: #dbeafe; color: #2563eb; }
-        .status-voting { background: #e0f2fe; color: #0284c7; }
         .status-success { background: #d1fae5; color: #065f46; }
         
         .timer-circle {
@@ -161,6 +155,15 @@
             70% { opacity: 1; }
             100% { opacity: 0; }
         }
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 14px;
+            background: white;
+            margin-bottom: 15px;
+        }
     </style>
 </head>
 <body>
@@ -169,7 +172,7 @@
             <div class="avatar"><i class="fas fa-user"></i></div>
             <div>
                 <h3 id="playerName">Jogador</h3>
-                <p style="font-size:12px; color:#6b7280;">Duas Verdades e Uma Mentira</p>
+                <p style="font-size:12px; color:#6b7280;">2 Verdades 1 Mentira</p>
             </div>
             <button class="btn-secondary" onclick="confirmarLogout()" style="width:auto; padding:8px 15px;">
                 <i class="fas fa-sign-out-alt"></i> Sair
@@ -179,7 +182,7 @@
         <!-- Tela de Escrita das Frases -->
         <div class="card" id="frasesCard">
             <h2 style="margin-bottom:20px;"><i class="fas fa-pen-fancy"></i> Escreva suas Frases</h2>
-            <p style="margin-bottom:20px; color:#6b7280;">Escreva DUAS verdades sobre você e UMA mentira. Os outros terão que adivinhar qual é a mentira!</p>
+            <p style="margin-bottom:20px; color:#6b7280;">Escreva DUAS verdades sobre você e UMA mentira.</p>
             
             <div class="frase-input">
                 <label><i class="fas fa-check-circle" style="color:#10b981;"></i> Verdade 1</label>
@@ -195,15 +198,12 @@
             </div>
             <div class="frase-input">
                 <label><i class="fas fa-microphone-alt"></i> História Real (opcional)</label>
-                <textarea id="historiaReal" rows="3" placeholder="Conte a história real por trás da mentira (será revelada se acertarem)..."></textarea>
+                <textarea id="historiaReal" rows="3" placeholder="Conte a história real por trás da mentira..."></textarea>
             </div>
             
             <button class="btn btn-primary" onclick="enviarFrases()">
                 <i class="fas fa-paper-plane"></i> Enviar Frases
             </button>
-            <p style="margin-top:15px; font-size:12px; color:#9ca3af; text-align:center;">
-                <i class="fas fa-info-circle"></i> Após enviar, aguarde os outros jogadores. O anfitrião iniciará as rodadas.
-            </p>
         </div>
 
         <!-- Tela de Aguardando -->
@@ -223,10 +223,12 @@
             <div class="timer-circle">
                 <span id="timerVotacao">0</span>
             </div>
-            <h2 style="text-align:center; margin-bottom:20px;" id="votacaoTitulo">🎭 Quem está na vez?</h2>
+            <h2 style="text-align:center; margin-bottom:10px;" id="votacaoTitulo">🎭 Vote</h2>
+            <div id="modoInfo" style="text-align:center; margin-bottom:20px; padding:8px; border-radius:12px;"></div>
             <div id="frasesVotacao"></div>
-            <button class="btn btn-primary" id="btnVotar" onclick="enviarVoto()" style="margin-top:15px;" disabled>
-                <i class="fas fa-vote-yea"></i> Confirmar Voto
+            <div id="autoresVotacao" style="margin-top:20px;"></div>
+            <button class="btn btn-primary" id="btnVotar" onclick="enviarVotos()" style="margin-top:15px;" disabled>
+                <i class="fas fa-vote-yea"></i> Confirmar Votos
             </button>
         </div>
 
@@ -242,11 +244,13 @@
     <script>
         let playerId = null;
         let playerName = null;
-        let frasesEnviadas = false;
         let rodadaAtiva = false;
-        let meuVoto = null;
+        let modoJogo = "normal";
+        let meuVotoMentira = null;
+        let meuVotoAutor = null;
         let timerInterval = null;
         let rodadaListener = null;
+        let modoListener = null;
         
         function showToast(msg) {
             const toast = document.createElement('div');
@@ -267,7 +271,7 @@
                 return;
             }
             
-            const mentiraIndex = 3; // A mentira é a terceira frase
+            const mentiraIndex = 3;
             
             try {
                 await window.db.ref(`frases/${playerId}`).set({
@@ -283,7 +287,6 @@
                     frases: true
                 });
                 
-                frasesEnviadas = true;
                 document.getElementById('frasesCard').style.display = 'none';
                 document.getElementById('aguardandoCard').style.display = 'block';
                 showToast("✅ Frases enviadas! Aguarde o jogo começar.");
@@ -294,6 +297,13 @@
             }
         }
         
+        function listenToModo() {
+            if (modoListener) modoListener.off();
+            modoListener = window.db.ref('modoJogo').on('value', (snapshot) => {
+                modoJogo = snapshot.val() || "normal";
+            });
+        }
+        
         function listenToRodada() {
             if (rodadaListener) rodadaListener.off();
             
@@ -301,28 +311,60 @@
                 const rodada = snapshot.val();
                 
                 if (rodada && rodada.ativa && rodada.jogadorId !== playerId) {
-                    // Modo votação
                     rodadaAtiva = true;
                     document.getElementById('frasesCard').style.display = 'none';
                     document.getElementById('aguardandoCard').style.display = 'none';
                     document.getElementById('votacaoCard').style.display = 'block';
                     document.getElementById('resultadoCard').style.display = 'none';
                     
-                    document.getElementById('votacaoTitulo').innerHTML = `🎭 Vez de ${rodada.jogadorNome}`;
+                    const modo = rodada.modo || "normal";
                     
-                    const frases = [rodada.frase1, rodada.frase2, rodada.frase3];
-                    const letras = ['A', 'B', 'C'];
+                    if (modo === "normal") {
+                        document.getElementById('modoInfo').innerHTML = '<span class="status-badge status-waiting">😊 Modo Normal - Descubra a mentira</span>';
+                        document.getElementById('votacaoTitulo').innerHTML = `🎭 Vez de ${rodada.jogadorNome}`;
+                        document.getElementById('autoresVotacao').style.display = 'none';
+                        
+                        const frases = [rodada.frase1, rodada.frase2, rodada.frase3];
+                        const letras = ['A', 'B', 'C'];
+                        
+                        document.getElementById('frasesVotacao').innerHTML = frases.map((frase, idx) => `
+                            <div class="btn-voto" onclick="selecionarVotoMentira('${letras[idx]}')" data-voto-mentira="${letras[idx]}">
+                                <strong>${letras[idx]})</strong> ${frase}
+                            </div>
+                        `).join('');
+                    } else {
+                        document.getElementById('modoInfo').innerHTML = '<span class="status-badge" style="background:#fef3c7; color:#d97706;">🔥 Modo Difícil - Descubra a MENTIRA e o AUTOR</span>';
+                        document.getElementById('votacaoTitulo').innerHTML = `🎭 Alguém enviou estas frases...`;
+                        document.getElementById('autoresVotacao').style.display = 'block';
+                        
+                        const frases = [rodada.frase1, rodada.frase2, rodada.frase3];
+                        const letras = ['A', 'B', 'C'];
+                        
+                        document.getElementById('frasesVotacao').innerHTML = frases.map((frase, idx) => `
+                            <div class="btn-voto" onclick="selecionarVotoMentira('${letras[idx]}')" data-voto-mentira="${letras[idx]}">
+                                <strong>${letras[idx]})</strong> ${frase}
+                            </div>
+                        `).join('');
+                        
+                        // Carregar lista de jogadores para votar no autor
+                        const jogadoresSnap = await window.db.ref('jogadores').once('value');
+                        const jogadores = jogadoresSnap.val() || {};
+                        const online = Object.entries(jogadores).filter(([_, j]) => j.online === true);
+                        
+                        document.getElementById('autoresVotacao').innerHTML = `
+                            <h4 style="margin-bottom:10px;"><i class="fas fa-users"></i> Quem enviou estas frases?</h4>
+                            ${online.map(([id, j]) => `
+                                <div class="btn-voto" onclick="selecionarVotoAutor('${id}')" data-voto-autor="${id}">
+                                    <strong><i class="fas fa-user"></i></strong> ${j.nome}
+                                </div>
+                            `).join('')}
+                        `;
+                    }
                     
-                    document.getElementById('frasesVotacao').innerHTML = frases.map((frase, idx) => `
-                        <div class="btn-voto" onclick="selecionarVoto('${letras[idx]}')" data-voto="${letras[idx]}">
-                            <strong>${letras[idx]})</strong> ${frase}
-                        </div>
-                    `).join('');
-                    
-                    meuVoto = null;
+                    meuVotoMentira = null;
+                    meuVotoAutor = null;
                     document.getElementById('btnVotar').disabled = true;
                     
-                    // Iniciar timer
                     if (timerInterval) clearInterval(timerInterval);
                     let tempoRestante = rodada.tempoLimite || 30;
                     const timerElement = document.getElementById('timerVotacao');
@@ -332,13 +374,12 @@
                         timerElement.textContent = tempoRestante;
                         if (tempoRestante <= 0) {
                             clearInterval(timerInterval);
-                            if (meuVoto) enviarVoto();
+                            if (meuVotoMentira) enviarVotos();
                             else showToast("⏰ Tempo esgotado! Você não votou.");
                         }
                     }, 1000);
                     
                 } else if (rodada && rodada.ativa && rodada.jogadorId === playerId) {
-                    // É a vez do próprio jogador - só aguardar
                     document.getElementById('frasesCard').style.display = 'none';
                     document.getElementById('aguardandoCard').style.display = 'block';
                     document.getElementById('votacaoCard').style.display = 'none';
@@ -365,57 +406,66 @@
             });
         }
         
-        function selecionarVoto(voto) {
-            meuVoto = voto;
-            document.querySelectorAll('.btn-voto').forEach(btn => {
+        function selecionarVotoMentira(voto) {
+            meuVotoMentira = voto;
+            document.querySelectorAll('#frasesVotacao .btn-voto').forEach(btn => {
                 btn.classList.remove('selected');
-                if (btn.getAttribute('data-voto') === voto) {
+                if (btn.getAttribute('data-voto-mentira') === voto) {
                     btn.classList.add('selected');
                 }
             });
-            document.getElementById('btnVotar').disabled = false;
+            verificarBotao();
         }
         
-        async function enviarVoto() {
-            if (!meuVoto) {
-                alert("Selecione uma opção primeiro!");
+        function selecionarVotoAutor(autorId) {
+            meuVotoAutor = autorId;
+            document.querySelectorAll('#autoresVotacao .btn-voto').forEach(btn => {
+                btn.classList.remove('selected');
+                if (btn.getAttribute('data-voto-autor') === autorId) {
+                    btn.classList.add('selected');
+                }
+            });
+            verificarBotao();
+        }
+        
+        function verificarBotao() {
+            if (modoJogo === "normal") {
+                document.getElementById('btnVotar').disabled = (meuVotoMentira === null);
+            } else {
+                document.getElementById('btnVotar').disabled = (meuVotoMentira === null || meuVotoAutor === null);
+            }
+        }
+        
+        async function enviarVotos() {
+            if (!meuVotoMentira) {
+                alert("Selecione qual é a mentira!");
+                return;
+            }
+            
+            if (modoJogo === "dificil" && !meuVotoAutor) {
+                alert("Selecione quem enviou as frases!");
                 return;
             }
             
             try {
-                await window.db.ref(`votosRodada/${playerId}`).set(meuVoto);
-                showToast(`✅ Você votou na opção ${meuVoto}!`);
+                await window.db.ref(`votosMentira/${playerId}`).set(meuVotoMentira);
+                
+                if (modoJogo === "dificil" && meuVotoAutor) {
+                    await window.db.ref(`votosAutor/${playerId}`).set(meuVotoAutor);
+                }
+                
+                showToast(`✅ Voto registrado!`);
                 document.getElementById('btnVotar').disabled = true;
                 
-                // Aguardar resultado
                 setTimeout(() => {
                     document.getElementById('votacaoCard').style.display = 'none';
+                    document.getElementById('aguardandoCard').style.display = 'block';
                 }, 500);
                 
             } catch (error) {
                 console.error(error);
                 alert("Erro ao enviar voto: " + error.message);
             }
-        }
-        
-        function listenToResultado() {
-            window.db.ref('rodadaAtiva').on('value', async (snapshot) => {
-                const rodada = snapshot.val();
-                if (!rodada || !rodada.ativa) {
-                    // Resultado já foi processado no anfitrião
-                    if (rodadaAtiva) {
-                        rodadaAtiva = false;
-                        if (timerInterval) clearInterval(timerInterval);
-                    }
-                }
-            });
-            
-            // Ouvir mudanças nas pontuações
-            window.db.ref('pontuacoes').on('value', () => {
-                if (!rodadaAtiva) {
-                    showToast("📊 O ranking foi atualizado!");
-                }
-            });
         }
         
         function fecharResultado() {
@@ -442,7 +492,6 @@
             }
         }
         
-        // Heartbeat para manter online
         function iniciarHeartbeat() {
             setInterval(async () => {
                 if (playerId) {
@@ -454,8 +503,9 @@
             }, 15000);
         }
         
-        window.selecionarVoto = selecionarVoto;
-        window.enviarVoto = enviarVoto;
+        window.selecionarVotoMentira = selecionarVotoMentira;
+        window.selecionarVotoAutor = selecionarVotoAutor;
+        window.enviarVotos = enviarVotos;
         window.enviarFrases = enviarFrases;
         window.confirmarLogout = confirmarLogout;
         window.fecharResultado = fecharResultado;
@@ -467,13 +517,11 @@
             }
             loadPlayerData();
             iniciarHeartbeat();
+            listenToModo();
             listenToRodada();
-            listenToResultado();
             
-            // Verificar se já enviou frases
             const frasesSnap = await window.db.ref(`frases/${playerId}`).once('value');
             if (frasesSnap.exists()) {
-                frasesEnviadas = true;
                 document.getElementById('frasesCard').style.display = 'none';
                 document.getElementById('aguardandoCard').style.display = 'block';
             }
